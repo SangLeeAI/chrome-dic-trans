@@ -1,0 +1,153 @@
+#live-ko-captions-root {
+  --lkc-font-size: 22px;
+  --lkc-opacity: 0.85;
+  all: initial;
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  pointer-events: none !important;
+  z-index: 2147483646 !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+    "Noto Sans KR", sans-serif !important;
+  display: none !important;
+  box-sizing: border-box !important;
+}
+
+#live-ko-captions-root.lkc-visible {
+  display: block !important;
+}
+
+#live-ko-captions-root .lkc-panel {
+  pointer-events: auto !important;
+  position: absolute !important;
+  left: 50% !important;
+  bottom: 8% !important;
+  transform: translateX(-50%) !important;
+  max-width: min(920px, 92vw) !important;
+  min-width: min(280px, 90vw) !important;
+  background: rgba(12, 14, 20, var(--lkc-opacity)) !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  padding: 12px 16px 14px !important;
+  box-sizing: border-box !important;
+  user-select: none !important;
+}
+
+#live-ko-captions-root[data-position="top"] .lkc-panel {
+  top: 8% !important;
+  bottom: auto !important;
+}
+
+#live-ko-captions-root .lkc-toolbar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-bottom: 8px !important;
+  opacity: 0.9 !important;
+}
+
+#live-ko-captions-root .lkc-drag {
+  cursor: grab !important;
+  letter-spacing: -2px !important;
+  color: rgba(248, 250, 252, 0.55) !important;
+  font-size: 14px !important;
+  padding: 0 4px !important;
+  line-height: 1 !important;
+}
+
+#live-ko-captions-root .lkc-drag:active {
+  cursor: grabbing !important;
+}
+
+#live-ko-captions-root .lkc-status {
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.02em !important;
+  padding: 3px 8px !important;
+  border-radius: 999px !important;
+  background: rgba(148, 163, 184, 0.2) !important;
+  color: #cbd5e1 !important;
+  margin-right: auto !important;
+}
+
+#live-ko-captions-root .lkc-status[data-status="listening"],
+#live-ko-captions-root .lkc-status[data-status="ready"] {
+  background: rgba(34, 197, 94, 0.2) !important;
+  color: #86efac !important;
+}
+
+#live-ko-captions-root .lkc-status[data-status="starting"] {
+  background: rgba(59, 130, 246, 0.22) !important;
+  color: #93c5fd !important;
+}
+
+#live-ko-captions-root .lkc-status[data-status="error"] {
+  background: rgba(239, 68, 68, 0.22) !important;
+  color: #fca5a5 !important;
+}
+
+#live-ko-captions-root .lkc-btn {
+  all: unset !important;
+  box-sizing: border-box !important;
+  cursor: pointer !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1 !important;
+  padding: 6px 8px !important;
+  border-radius: 8px !important;
+  color: #e2e8f0 !important;
+  background: rgba(255, 255, 255, 0.08) !important;
+  transition: background 0.15s ease !important;
+}
+
+#live-ko-captions-root .lkc-btn:hover {
+  background: rgba(255, 255, 255, 0.16) !important;
+}
+
+#live-ko-captions-root .lkc-btn.active {
+  background: rgba(96, 165, 250, 0.35) !important;
+  color: #dbeafe !important;
+}
+
+#live-ko-captions-root .lkc-close {
+  font-size: 16px !important;
+  padding: 4px 8px !important;
+}
+
+#live-ko-captions-root .lkc-text {
+  font-size: var(--lkc-font-size) !important;
+  line-height: 1.45 !important;
+  font-weight: 600 !important;
+  text-align: center !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+  color: #f8fafc !important;
+  min-height: 1.45em !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important;
+}
+
+#live-ko-captions-root .lkc-text.lkc-interim {
+  color: #cbd5e1 !important;
+  font-weight: 500 !important;
+}
+
+#live-ko-captions-root .lkc-original {
+  margin-top: 8px !important;
+  padding-top: 8px !important;
+  border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
+  font-size: calc(var(--lkc-font-size) * 0.72) !important;
+  line-height: 1.4 !important;
+  text-align: center !important;
+  color: #94a3b8 !important;
+  word-break: break-word !important;
+}
+
+#live-ko-captions-root .lkc-original[hidden] {
+  display: none !important;
+}

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>실시간 한글 자막</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="logo" aria-hidden="true">字幕</div>
+      <div>
+        <h1>실시간 한글 자막</h1>
+        <p class="subtitle">영어 오디오 → 한국어 자막</p>
+      </div>
+    </header>
+
+    <section class="card">
+      <div class="status-row">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusText">중지됨</span>
+      </div>
+
+      <button type="button" id="toggleBtn" class="primary-btn">
+        자막 시작
+      </button>
+
+      <p class="hint" id="hintText">
+        Local Whisper 서버를 켠 뒤, 영어 영상이 재생 중인 탭에서 시작하세요.
+      </p>
+    </section>
+
+    <section class="card">
+      <h2>인식 엔진</h2>
+
+      <label class="field">
+        <span>엔진</span>
+        <select id="sttEngine">
+          <option value="whisper">Local Whisper (GPU, 추천)</option>
+          <option value="webspeech">Chrome 마이크 (Web Speech)</option>
+        </select>
+      </label>
+
+      <div id="whisperFields">
+        <label class="field">
+          <span>Whisper 서버 URL</span>
+          <input
+            type="url"
+            id="whisperUrl"
+            placeholder="http://192.168.2.247:9000"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </label>
+
+        <div class="row-actions">
+          <button type="button" id="testWhisperBtn" class="secondary-btn">
+            연결 테스트
+          </button>
+          <span id="testResult" class="test-result"></span>
+        </div>
+
+        <label class="field">
+          <span>청크 길이 <em id="chunkMsVal">4.5</em>초</span>
+          <input
+            type="range"
+            id="chunkMs"
+            min="3000"
+            max="8000"
+            step="500"
+            value="4500"
+          />
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>표시</h2>
+
+      <label class="field">
+        <span>인식 언어 (Web Speech)</span>
+        <select id="sourceLang">
+          <option value="en-US">English (US)</option>
+          <option value="en-GB">English (UK)</option>
+          <option value="en-AU">English (AU)</option>
+        </select>
+      </label>
+
+      <label class="field">
+        <span>글자 크기 <em id="fontSizeVal">22</em>px</span>
+        <input type="range" id="fontSize" min="14" max="40" step="1" value="22" />
+      </label>
+
+      <label class="field">
+        <span>배경 투명도 <em id="opacityVal">85</em>%</span>
+        <input type="range" id="opacity" min="40" max="95" step="5" value="85" />
+      </label>
+
+      <label class="field">
+        <span>기본 위치</span>
+        <select id="position">
+          <option value="bottom">하단</option>
+          <option value="top">상단</option>
+        </select>
+      </label>
+    </section>
+
+    <footer class="footer">
+      <details>
+        <summary>사용 팁</summary>
+        <ul>
+          <li>Windows에서 <code>run.bat</code>으로 Whisper를 먼저 실행하세요.</li>
+          <li>URL 예: <code>http://192.168.2.247:9000</code> (GPU PC IP)</li>
+          <li><strong>연결 테스트</strong>가 성공한 뒤 자막을 시작하세요.</li>
+          <li>자막 박스 <strong>EN</strong>으로 영어 원문을 볼 수 있습니다.</li>
+          <li>탭 오디오를 캡처하므로 이어폰만 써도 인식됩니다.</li>
+        </ul>
+      </details>
+    </footer>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>
