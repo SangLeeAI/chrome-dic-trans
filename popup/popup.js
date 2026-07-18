@@ -44,12 +44,12 @@ function syncEngineUI() {
 
 /** UI 투과율(%) → CSS 배경 alpha (높을수록 더 비침) */
 function transparencyToOpacity(pct) {
-  const t = Math.min(80, Math.max(10, Number(pct) || 45));
+  const t = Math.min(80, Math.max(10, Number(pct) || 50));
   return Math.round((1 - t / 100) * 100) / 100;
 }
 
 function opacityToTransparency(opacity) {
-  const o = Math.min(0.95, Math.max(0.15, Number(opacity) || 0.55));
+  const o = Math.min(0.95, Math.max(0.15, Number(opacity) || 0.5));
   return Math.round((1 - o) * 100);
 }
 
@@ -63,7 +63,7 @@ function readSettingsFromUI() {
     fontSize: Number(els.fontSize.value),
     // Stored as background alpha for the overlay CSS variable
     opacity: transparencyToOpacity(transparency),
-    position: els.position.value,
+    // position is saved separately so popup top/bottom does not wipe drag (custom) layout
   };
 }
 
@@ -74,7 +74,7 @@ async function loadSettings() {
     chunkMs: 5500,
     sourceLang: "en-US",
     fontSize: 18,
-    opacity: 0.55,
+    opacity: 0.5,
     position: "bottom",
   });
 
@@ -88,7 +88,12 @@ async function loadSettings() {
   const tr = opacityToTransparency(stored.opacity);
   els.transparency.value = String(tr);
   els.transparencyVal.textContent = String(tr);
-  els.position.value = stored.position;
+  // Only snap presets in popup; keep "custom" (drag) as-is in storage
+  if (stored.position === "top" || stored.position === "bottom") {
+    els.position.value = stored.position;
+  } else {
+    els.position.value = "bottom";
+  }
   syncEngineUI();
 }
 
@@ -236,7 +241,14 @@ els.transparency.addEventListener("input", () => {
 });
 
 els.sourceLang.addEventListener("change", saveSettings);
-els.position.addEventListener("change", saveSettings);
+els.position.addEventListener("change", async () => {
+  const position = els.position.value === "top" ? "top" : "bottom";
+  await chrome.storage.sync.set({
+    position,
+    panelLeft: null,
+    panelTop: null,
+  });
+});
 
 await loadSettings();
 await refreshStatus();

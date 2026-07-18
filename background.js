@@ -113,8 +113,12 @@ async function startCaptions(tabId, settings = {}) {
   const stored = await chrome.storage.sync.get({
     sourceLang: "en-US",
     fontSize: 18,
-    opacity: 0.55,
+    opacity: 0.5,
     position: "bottom",
+    panelWidthPct: 80,
+    panelHeightVh: 10,
+    panelLeft: null,
+    panelTop: null,
     sttEngine: "whisper",
     whisperUrl: "http://192.168.2.247:9000",
     chunkMs: 5500,
