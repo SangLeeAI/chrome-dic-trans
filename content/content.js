@@ -20,7 +20,8 @@
   let isVisible = false;
   let settings = {
     fontSize: DEFAULT_FONT_SIZE,
-    opacity: 0.85,
+    // Background alpha (0–1). Higher = more opaque. Default semi-transparent.
+    opacity: 0.55,
     position: "bottom",
   };
 
@@ -28,12 +29,56 @@
   let history = [];
   let interimKo = "";
   let interimEn = "";
+  let fullscreenHooked = false;
 
   function applySettings() {
     if (!root) return;
+    const alpha = Math.min(0.95, Math.max(0.15, Number(settings.opacity) || 0.55));
     root.style.setProperty("--lkc-font-size", `${settings.fontSize}px`);
-    root.style.setProperty("--lkc-opacity", String(settings.opacity));
+    root.style.setProperty("--lkc-opacity", String(alpha));
     root.dataset.position = settings.position || "bottom";
+  }
+
+  function getFullscreenElement() {
+    return (
+      document.fullscreenElement ||
+      document.webkitFullscreenElement ||
+      document.mozFullScreenElement ||
+      document.msFullscreenElement ||
+      null
+    );
+  }
+
+  /**
+   * Fullscreen only shows descendants of the fullscreen element.
+   * Re-parent the overlay into it (Udemy / YouTube / etc.).
+   */
+  function mountOverlayHost() {
+    if (!root) return;
+    const fs = getFullscreenElement();
+    const host = fs || document.documentElement;
+    if (root.parentNode !== host) {
+      try {
+        host.appendChild(root);
+      } catch (e) {
+        console.warn("[captions] mount host failed", e);
+        document.documentElement.appendChild(root);
+      }
+    }
+    root.classList.toggle("lkc-in-fullscreen", !!fs);
+  }
+
+  function hookFullscreen() {
+    if (fullscreenHooked) return;
+    fullscreenHooked = true;
+    const onFs = () => {
+      if (!root) return;
+      mountOverlayHost();
+    };
+    document.addEventListener("fullscreenchange", onFs);
+    document.addEventListener("webkitfullscreenchange", onFs);
+    document.addEventListener("mozfullscreenchange", onFs);
+    document.addEventListener("MSFullscreenChange", onFs);
   }
 
   function escapeHtml(s) {
@@ -91,9 +136,13 @@
   }
 
   function ensureOverlay() {
-    if (root && document.documentElement.contains(root)) return root;
+    if (root && document.contains(root)) {
+      mountOverlayHost();
+      return root;
+    }
 
-    root = document.createElement("div");
+    // Recreate if orphaned
+    root = document.getElementById(ROOT_ID) || document.createElement("div");
     root.id = ROOT_ID;
     root.setAttribute("data-live-ko-captions", "1");
     root.innerHTML = `
@@ -112,8 +161,6 @@
         </div>
       </div>
     `;
-
-    document.documentElement.appendChild(root);
 
     linesEl = root.querySelector(".lkc-lines");
     originalEl = root.querySelector(".lkc-original");
@@ -137,8 +184,10 @@
       }
     });
 
+    hookFullscreen();
     setupDrag();
     applySettings();
+    mountOverlayHost();
     return root;
   }
 
@@ -187,8 +236,10 @@
   function showOverlay(nextSettings = {}) {
     settings = { ...settings, ...nextSettings };
     if (settings.fontSize == null) settings.fontSize = DEFAULT_FONT_SIZE;
+    if (settings.opacity == null) settings.opacity = 0.55;
     ensureOverlay();
     applySettings();
+    mountOverlayHost();
     clearCaptions();
     root.classList.add("lkc-visible");
     isVisible = true;
@@ -199,6 +250,7 @@
     if (root) {
       root.classList.remove("lkc-visible");
       clearCaptions();
+      // Leave host; next show remounts
     }
     isVisible = false;
   }
@@ -211,6 +263,7 @@
 
   function updateCaption({ text, original, interim }) {
     ensureOverlay();
+    mountOverlayHost();
     if (!isVisible) {
       root.classList.add("lkc-visible");
       isVisible = true;
@@ -253,6 +306,27 @@
 
   function lastHistoryKo() {
     return history.length ? history[history.length - 1].ko : "";
+  }
+
+  // Live-update opacity/font when popup settings change
+  try {
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== "sync" && area !== "local") return;
+      if (changes.opacity) {
+        settings.opacity = changes.opacity.newValue;
+        applySettings();
+      }
+      if (changes.fontSize) {
+        settings.fontSize = changes.fontSize.newValue;
+        applySettings();
+      }
+      if (changes.position && !root?.dataset?.position?.includes("custom")) {
+        settings.position = changes.position.newValue;
+        applySettings();
+      }
+    });
+  } catch {
+    // ignore
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {

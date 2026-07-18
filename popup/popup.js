@@ -15,8 +15,8 @@ const els = {
   sourceLang: $("sourceLang"),
   fontSize: $("fontSize"),
   fontSizeVal: $("fontSizeVal"),
-  opacity: $("opacity"),
-  opacityVal: $("opacityVal"),
+  transparency: $("transparency"),
+  transparencyVal: $("transparencyVal"),
   position: $("position"),
 };
 
@@ -42,14 +42,27 @@ function syncEngineUI() {
   }
 }
 
+/** UI 투과율(%) → CSS 배경 alpha (높을수록 더 비침) */
+function transparencyToOpacity(pct) {
+  const t = Math.min(80, Math.max(10, Number(pct) || 45));
+  return Math.round((1 - t / 100) * 100) / 100;
+}
+
+function opacityToTransparency(opacity) {
+  const o = Math.min(0.95, Math.max(0.15, Number(opacity) || 0.55));
+  return Math.round((1 - o) * 100);
+}
+
 function readSettingsFromUI() {
+  const transparency = Number(els.transparency.value);
   return {
     sttEngine: els.sttEngine.value,
     whisperUrl: els.whisperUrl.value.trim().replace(/\/+$/, ""),
     chunkMs: Number(els.chunkMs.value),
     sourceLang: els.sourceLang.value,
     fontSize: Number(els.fontSize.value),
-    opacity: Number(els.opacity.value) / 100,
+    // Stored as background alpha for the overlay CSS variable
+    opacity: transparencyToOpacity(transparency),
     position: els.position.value,
   };
 }
@@ -61,7 +74,7 @@ async function loadSettings() {
     chunkMs: 5500,
     sourceLang: "en-US",
     fontSize: 18,
-    opacity: 0.85,
+    opacity: 0.55,
     position: "bottom",
   });
 
@@ -72,8 +85,9 @@ async function loadSettings() {
   els.sourceLang.value = stored.sourceLang;
   els.fontSize.value = stored.fontSize;
   els.fontSizeVal.textContent = String(stored.fontSize);
-  els.opacity.value = Math.round(stored.opacity * 100);
-  els.opacityVal.textContent = String(Math.round(stored.opacity * 100));
+  const tr = opacityToTransparency(stored.opacity);
+  els.transparency.value = String(tr);
+  els.transparencyVal.textContent = String(tr);
   els.position.value = stored.position;
   syncEngineUI();
 }
@@ -216,8 +230,8 @@ els.fontSize.addEventListener("input", () => {
   saveSettings();
 });
 
-els.opacity.addEventListener("input", () => {
-  els.opacityVal.textContent = els.opacity.value;
+els.transparency.addEventListener("input", () => {
+  els.transparencyVal.textContent = els.transparency.value;
   saveSettings();
 });
 
