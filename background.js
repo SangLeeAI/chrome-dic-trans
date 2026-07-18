@@ -117,7 +117,7 @@ async function startCaptions(tabId, settings = {}) {
     position: "bottom",
     sttEngine: "whisper",
     whisperUrl: "http://192.168.2.247:9000",
-    chunkMs: 4500,
+    chunkMs: 5500,
   });
 
   const config = { ...stored, ...settings };
@@ -133,7 +133,7 @@ async function startCaptions(tabId, settings = {}) {
     sourceLang: config.sourceLang || "en-US",
     sttEngine: config.sttEngine || "whisper",
     whisperUrl: config.whisperUrl || "http://127.0.0.1:9000",
-    chunkMs: config.chunkMs || 4500,
+    chunkMs: config.chunkMs || 5500,
     targetLang: "ko",
   });
 

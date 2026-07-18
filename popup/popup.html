@@ -61,16 +61,19 @@
         </div>
 
         <label class="field">
-          <span>청크 길이 <em id="chunkMsVal">4.5</em>초</span>
+          <span>청크 길이 <em id="chunkMsVal">5.5</em>초</span>
           <input
             type="range"
             id="chunkMs"
             min="3000"
             max="8000"
             step="500"
-            value="4500"
+            value="5500"
           />
         </label>
+        <p class="hint" style="margin-top: 0">
+          large-v3 서버는 5~6초 권장. 짧을수록 빠르고, 길수록 문장이 안정적입니다.
+        </p>
       </div>
     </section>
 

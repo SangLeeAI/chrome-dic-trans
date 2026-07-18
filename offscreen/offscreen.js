@@ -22,8 +22,9 @@ let translateQueue = Promise.resolve();
 const recentTranslations = new Map();
 let lastInterimText = "";
 let lastInterimSentAt = 0;
-let inflightWhisper = 0;
-const MAX_INFLIGHT = 1; // avoid backlog on slow network
+/** Last final English transcript — sent as Whisper `prompt` for continuity */
+let lastEnglishPrompt = "";
+const PROMPT_MAX_CHARS = 220;
 
 function postStatus(status, detail = "") {
   chrome.runtime
@@ -323,7 +324,9 @@ function recordOneChunkWav(stream, ms) {
 }
 
 async function sendToWhisper(blob) {
-  if (!blob || blob.size < 1000) return null; // skip near-empty WAV
+  if (!blob || blob.size < 1000) {
+    return { text: "", warning: "empty_blob" };
+  }
 
   const base = normalizeBaseUrl(whisperBaseUrl);
   const endpoint = `${base}/v1/audio/transcriptions`;
@@ -332,6 +335,10 @@ async function sendToWhisper(blob) {
   form.append("model", "whisper-1");
   form.append("language", "en");
   form.append("response_format", "json");
+  // Continuity across short live chunks (server accepts OpenAI-style prompt)
+  if (lastEnglishPrompt) {
+    form.append("prompt", lastEnglishPrompt);
+  }
 
   const res = await fetch(endpoint, {
     method: "POST",
@@ -350,29 +357,56 @@ async function sendToWhisper(blob) {
   }
 
   const data = await res.json();
-  return (data?.text || "").trim();
+  return {
+    text: (data?.text || "").trim(),
+    warning: data?.warning || null,
+    stats: data?.stats || null,
+    device: data?.device || null,
+    elapsed_sec: data?.elapsed_sec,
+  };
+}
+
+function rememberPrompt(englishText) {
+  const t = (englishText || "").trim();
+  if (!t) return;
+  // Keep a short tail so the next chunk continues naturally
+  lastEnglishPrompt =
+    t.length > PROMPT_MAX_CHARS ? t.slice(-PROMPT_MAX_CHARS) : t;
 }
 
 async function processWhisperBlob(blob) {
   if (!isActive) return;
-  if (inflightWhisper >= MAX_INFLIGHT) {
-    // drop chunk if previous still running (keeps latency low)
-    return;
-  }
-  inflightWhisper += 1;
   try {
     postStatus("listening", "Whisper 인식 중…");
-    const text = await sendToWhisper(blob);
-    if (!isActive || !text) return;
-    // filter pure noise / very short
-    if (text.length < 2) return;
+    const result = await sendToWhisper(blob);
+    if (!isActive) return;
+
+    if (result?.warning === "silent_audio") {
+      postStatus("listening", "무음 구간");
+      return;
+    }
+    if (result?.warning === "empty_blob") {
+      postStatus("listening", "빈 오디오");
+      return;
+    }
+
+    const text = result?.text || "";
+    if (!text || text.length < 2) {
+      const rms = result?.stats?.rms;
+      postStatus(
+        "listening",
+        rms != null ? `인식 없음 (rms ${rms})` : "인식 없음"
+      );
+      return;
+    }
+
+    rememberPrompt(text);
     enqueueTranslate(text, false);
-    postStatus("listening", "듣는 중");
+    const device = result.device ? ` · ${result.device}` : "";
+    postStatus("listening", `듣는 중${device}`);
   } catch (e) {
     console.warn("whisper chunk failed", e);
     postStatus("error", e?.message || String(e));
-  } finally {
-    inflightWhisper -= 1;
   }
 }
 
@@ -380,18 +414,32 @@ async function chunkLoop() {
   if (chunkLoopRunning) return;
   chunkLoopRunning = true;
 
+  // Pipeline: record next chunk while previous STT runs; never drop audio.
+  let processPromise = Promise.resolve();
+
   while (isActive && tabStream) {
     try {
       const blob = await recordOneChunkWav(tabStream, chunkMs);
       mediaRecorder = null;
       if (!isActive) break;
-      processWhisperBlob(blob);
+
+      // Wait only if previous STT still in flight (no silent drop)
+      await processPromise;
+      if (!isActive) break;
+
+      processPromise = processWhisperBlob(blob);
     } catch (e) {
       console.warn("record chunk failed", e);
       if (!isActive) break;
       postStatus("error", e?.message || String(e));
       await new Promise((r) => setTimeout(r, 500));
     }
+  }
+
+  try {
+    await processPromise;
+  } catch {
+    // ignore
   }
   chunkLoopRunning = false;
 }
@@ -529,7 +577,9 @@ async function start(opts = {}) {
   sourceLang = opts.sourceLang || "en-US";
   sttEngine = opts.sttEngine === "webspeech" ? "webspeech" : "whisper";
   whisperBaseUrl = normalizeBaseUrl(opts.whisperUrl || "http://127.0.0.1:9000");
-  chunkMs = Math.min(12000, Math.max(2500, Number(opts.chunkMs) || 4500));
+  // Default 5.5s — better for large-v3 + beam search on local-whisper
+  chunkMs = Math.min(12000, Math.max(2500, Number(opts.chunkMs) || 5500));
+  lastEnglishPrompt = "";
 
   isActive = true;
 
@@ -580,6 +630,7 @@ async function start(opts = {}) {
 function stop() {
   isActive = false;
   stopChunkLoop();
+  lastEnglishPrompt = "";
   if (recognition) {
     try {
       recognition.onend = null;

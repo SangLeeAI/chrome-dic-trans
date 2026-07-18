@@ -57,7 +57,11 @@
 | **Local Whisper** | 탭 오디오 청크 (3~8초) | [local-whisper](https://github.com/SangLeeAI/local-whisper) 서버 |
 | Web Speech | 마이크 | 폴백용 |
 
-흐름: `탭 오디오 → WAV 청크 → POST /v1/audio/transcriptions → 번역 → 자막`
+흐름: `탭 오디오 → WAV 청크 → POST /v1/audio/transcriptions (+ prompt) → 번역 → 자막`
+
+- 기본 청크 **5.5초**, 인식 중 다음 구간을 녹음(파이프라인)해 청크를 버리지 않습니다.
+- 직전 영어 문장을 Whisper `prompt`로 넘겨 문장 연속성을 높입니다.
+- 서버 기본이 `large-v3`면 인식이 무거울 수 있으니 청크를 5~6초로 두는 것을 권장합니다.
 
 ## 프로젝트 구조
 

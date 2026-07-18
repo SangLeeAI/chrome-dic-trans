@@ -58,7 +58,7 @@ async function loadSettings() {
   const stored = await chrome.storage.sync.get({
     sttEngine: "whisper",
     whisperUrl: "http://192.168.2.247:9000",
-    chunkMs: 4500,
+    chunkMs: 5500,
     sourceLang: "en-US",
     fontSize: 22,
     opacity: 0.85,
@@ -128,7 +128,12 @@ async function testWhisper() {
     if (res?.ok) {
       const model = res.data?.model || "?";
       const device = res.data?.device || "?";
-      els.testResult.textContent = `OK · ${model} · ${device}`;
+      const idx =
+        res.data?.device_index != null ? `:${res.data.device_index}` : "";
+      const compute = res.data?.compute_type
+        ? ` · ${res.data.compute_type}`
+        : "";
+      els.testResult.textContent = `OK · ${model} · ${device}${idx}${compute}`;
       els.testResult.className = "test-result ok";
       els.hintText.textContent = `Whisper 연결됨: ${url}`;
     } else {
