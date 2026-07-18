@@ -26,6 +26,13 @@ let lastInterimSentAt = 0;
 let lastEnglishPrompt = "";
 const PROMPT_MAX_CHARS = 220;
 
+/** Sentence-level translation buffer (not per audio chunk) */
+let sentenceBuffer = "";
+let lastKoCaption = "";
+let sentenceFlushTimer = null;
+const SENTENCE_FLUSH_IDLE_MS = 3200; // no new text → force-translate partial
+const SENTENCE_FORCE_WORDS = 16; // long clause without .!?
+
 function postStatus(status, detail = "") {
   chrome.runtime
     .sendMessage({ type: "CAPTION_STATUS", status, detail })
@@ -111,9 +118,131 @@ function enqueueTranslate(original, interim) {
       }
       const ko = await translateEnToKo(original);
       if (!isActive) return;
+      if (!interim) lastKoCaption = ko || original;
       postCaption(ko || original, original, interim);
     })
     .catch((e) => console.warn("translate queue", e));
+}
+
+/** Join Whisper chunks; drop simple word overlaps at the boundary. */
+function joinUtterance(prev, next) {
+  const a = (prev || "").trim();
+  const b = (next || "").trim();
+  if (!a) return b;
+  if (!b) return a;
+  if (a.endsWith(b)) return a;
+  if (b.startsWith(a)) return b;
+
+  const aw = a.split(/\s+/);
+  const bw = b.split(/\s+/);
+  const max = Math.min(aw.length, bw.length, 10);
+  for (let n = max; n > 0; n--) {
+    const tail = aw.slice(-n).join(" ").toLowerCase();
+    const head = bw.slice(0, n).join(" ").toLowerCase();
+    if (tail === head) {
+      const rest = bw.slice(n).join(" ");
+      return rest ? `${a} ${rest}` : a;
+    }
+  }
+  return `${a} ${b}`;
+}
+
+/**
+ * Split complete English sentences ending with . ! ?
+ * Leaves the unfinished tail in `rest`.
+ */
+function splitCompleteSentences(text) {
+  const src = (text || "").trim();
+  if (!src) return { sentences: [], rest: "" };
+
+  // End of sentence: . ! ? (optionally followed by closing quotes/brackets)
+  const endRe = /[.!?]+(?:["'\u201d\u2019)\]]+)?(?=\s+|$)/g;
+  const sentences = [];
+  let last = 0;
+  let m;
+  while ((m = endRe.exec(src)) !== null) {
+    const end = m.index + m[0].length;
+    const sentence = src.slice(last, end).trim();
+    if (sentence && /[.!?]/.test(sentence)) {
+      sentences.push(sentence);
+      last = end;
+    }
+  }
+  const rest = src.slice(last).replace(/^\s+/, "");
+  return { sentences, rest };
+}
+
+function wordCount(s) {
+  return (s || "").trim().split(/\s+/).filter(Boolean).length;
+}
+
+function clearSentenceFlushTimer() {
+  if (sentenceFlushTimer) {
+    clearTimeout(sentenceFlushTimer);
+    sentenceFlushTimer = null;
+  }
+}
+
+function scheduleSentenceFlush() {
+  clearSentenceFlushTimer();
+  sentenceFlushTimer = setTimeout(() => {
+    sentenceFlushTimer = null;
+    if (!isActive) return;
+    flushSentenceBuffer("idle");
+  }, SENTENCE_FLUSH_IDLE_MS);
+}
+
+function showPartialCaption() {
+  if (!sentenceBuffer.trim()) return;
+  // Keep last finished Korean on screen; put unfinished English in original line
+  const display = lastKoCaption || sentenceBuffer;
+  postCaption(display, sentenceBuffer, true);
+}
+
+/**
+ * Feed STT text into the sentence buffer and translate only complete sentences.
+ */
+function feedSentenceBuffer(piece) {
+  const t = (piece || "").trim();
+  if (!t) return;
+
+  sentenceBuffer = joinUtterance(sentenceBuffer, t);
+  drainCompleteSentences();
+
+  // Long spoken clause with no punctuation — force a unit
+  if (wordCount(sentenceBuffer) >= SENTENCE_FORCE_WORDS) {
+    flushSentenceBuffer("length");
+    return;
+  }
+
+  if (sentenceBuffer) {
+    showPartialCaption();
+    scheduleSentenceFlush();
+  }
+}
+
+function drainCompleteSentences() {
+  const { sentences, rest } = splitCompleteSentences(sentenceBuffer);
+  sentenceBuffer = rest;
+  for (const s of sentences) {
+    enqueueTranslate(s, false);
+  }
+}
+
+function flushSentenceBuffer(reason = "manual") {
+  clearSentenceFlushTimer();
+  const pending = sentenceBuffer.trim();
+  if (!pending) return;
+  sentenceBuffer = "";
+  // Treat as one caption unit even without terminal punctuation
+  enqueueTranslate(pending, false);
+  console.debug("[caption] flush sentence buffer:", reason, pending.slice(0, 80));
+}
+
+function resetSentenceBuffer() {
+  clearSentenceFlushTimer();
+  sentenceBuffer = "";
+  lastKoCaption = "";
 }
 
 // ---------- Tab audio ----------
@@ -382,6 +511,8 @@ async function processWhisperBlob(blob) {
     if (!isActive) return;
 
     if (result?.warning === "silent_audio") {
+      // End of speech-ish — flush any unfinished clause
+      flushSentenceBuffer("silence");
       postStatus("listening", "무음 구간");
       return;
     }
@@ -401,7 +532,8 @@ async function processWhisperBlob(blob) {
     }
 
     rememberPrompt(text);
-    enqueueTranslate(text, false);
+    // Sentence-level translation (not per audio chunk)
+    feedSentenceBuffer(text);
     const device = result.device ? ` · ${result.device}` : "";
     postStatus("listening", `듣는 중${device}`);
   } catch (e) {
@@ -522,7 +654,7 @@ function createRecognition() {
     }
     if (finalText.trim()) {
       lastInterimText = "";
-      enqueueTranslate(finalText.trim(), false);
+      feedSentenceBuffer(finalText.trim());
     } else if (interim.trim()) {
       const now = Date.now();
       const text = interim.trim();
@@ -580,6 +712,7 @@ async function start(opts = {}) {
   // Default 5.5s — better for large-v3 + beam search on local-whisper
   chunkMs = Math.min(12000, Math.max(2500, Number(opts.chunkMs) || 5500));
   lastEnglishPrompt = "";
+  resetSentenceBuffer();
 
   isActive = true;
 
@@ -630,7 +763,9 @@ async function start(opts = {}) {
 function stop() {
   isActive = false;
   stopChunkLoop();
+  flushSentenceBuffer("stop");
   lastEnglishPrompt = "";
+  resetSentenceBuffer();
   if (recognition) {
     try {
       recognition.onend = null;

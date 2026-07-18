@@ -2,12 +2,13 @@
 
 웹사이트에서 재생되는 **영어 오디오/영상**을 인식해, 페이지 위에 **실시간 한글 자막**으로 보여 주는 Chrome 확장 프로그램입니다.
 
-**현재 버전: 1.2.0**
+**현재 버전: 1.2.1**
 
 ## 주요 기능
 
 - **Local Whisper (GPU)** — 외부 Whisper 서버 URL 연결 (탭 오디오 직접 인식, 이어폰 OK)
 - **파이프라인 STT** — 인식 중 다음 구간을 녹음해 청크를 버리지 않음
+- **문장 단위 번역** — 오디오 청크가 아니라 `.` `!` `?` 로 끝나는 문장 완성 시 번역
 - **문장 연속성** — 직전 영어 문장을 Whisper `prompt`로 전달
 - Chrome Web Speech 폴백 (마이크)
 - 영어 → 한국어 자동 번역 자막
@@ -69,20 +70,22 @@
 탭 오디오
   → WAV 청크 (16 kHz mono)
   → POST /v1/audio/transcriptions  (+ language=en, prompt=직전 영어)
-  → 영어 텍스트
-  → 한글 번역
+  → 영어 텍스트 누적
+  → 문장 완성 시(. ! ?) 한글 번역
   → 화면 자막
 ```
 
-### Local Whisper 동작 세부 (v1.2.0)
+### Local Whisper 동작 세부 (v1.2.1)
 
 | 항목 | 동작 |
 |------|------|
 | 오디오 포맷 | `chunk.wav` (PCM, 16 kHz, mono) — 서버 ffmpeg 의존 최소화 |
 | 파이프라인 | STT 처리 중에도 다음 청크 녹음. **느린 large-v3에서도 청크 drop 없음** |
 | prompt | 직전 인식 영어 문장(최대 약 220자)을 다음 요청에 전달해 문장 끊김 완화 |
+| **번역 단위** | **문장 단위** — `.` `!` `?` 로 끝나면 번역. 미완성은 버퍼에 대기 |
+| 강제 flush | 약 3.2초 무입력, 또는 16단어 이상 구두점 없음, 무음/중지 시 미완성 문장 번역 |
 | 기본 청크 | **5.5초** — 서버 `large-v3` + beam search 지연에 맞춤 |
-| 무음 처리 | 서버 `warning: silent_audio` 또는 빈 텍스트 시 상태만 표시 (자막 유지) |
+| 무음 처리 | `silent_audio` 시 미완성 버퍼 flush 후 상태 표시 |
 | Health | `GET /health` → `ok` 확인. 연결 테스트에 device 정보 표시 |
 
 서버 API (OpenAI 호환):
@@ -95,7 +98,7 @@
 
 ```
 chrome-dic-trans/
-├── manifest.json          # MV3, v1.2.0
+├── manifest.json          # MV3, v1.2.1
 ├── background.js          # 시작/중지, 탭 메시지, Whisper 테스트 중계
 ├── offscreen/
 │   ├── offscreen.html
@@ -129,6 +132,12 @@ chrome-dic-trans/
 | [local-whisper](https://github.com/SangLeeAI/local-whisper) | Windows/GPU용 로컬 Whisper HTTP 서버 |
 
 ## 변경 이력 (요약)
+
+### 1.2.1
+
+- **문장 단위 번역** (청크 단위 번역 제거)
+- `.` `!` `?` 완성 시에만 KO 번역, 미완성은 버퍼·interim 표시
+- 무입력/긴 절/무음/중지 시 버퍼 flush
 
 ### 1.2.0
 
