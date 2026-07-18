@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "실시간 영어→한글 자막",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "웹사이트 영어 오디오를 실시간 인식해 한글 자막으로 표시합니다. Local Whisper(GPU) 지원.",
   "permissions": [
     "storage",

@@ -1,5 +1,5 @@
 #live-ko-captions-root {
-  --lkc-font-size: 22px;
+  --lkc-font-size: 18px;
   --lkc-opacity: 0.85;
   all: initial;
   position: fixed !important;
@@ -22,25 +22,27 @@
   pointer-events: auto !important;
   position: absolute !important;
   left: 50% !important;
-  bottom: 8% !important;
+  bottom: 5% !important;
   transform: translateX(-50%) !important;
-  max-width: min(920px, 92vw) !important;
-  min-width: min(280px, 90vw) !important;
+  /* Wider panel for multi-sentence captions */
+  width: min(1180px, 96vw) !important;
+  max-width: min(1180px, 96vw) !important;
+  min-width: min(360px, 94vw) !important;
   background: rgba(12, 14, 20, var(--lkc-opacity)) !important;
   color: #f8fafc !important;
   border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  border-radius: 16px !important;
+  border-radius: 18px !important;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45),
     0 0 0 1px rgba(255, 255, 255, 0.04) inset !important;
   backdrop-filter: blur(14px) !important;
   -webkit-backdrop-filter: blur(14px) !important;
-  padding: 12px 16px 14px !important;
+  padding: 12px 18px 16px !important;
   box-sizing: border-box !important;
   user-select: none !important;
 }
 
 #live-ko-captions-root[data-position="top"] .lkc-panel {
-  top: 8% !important;
+  top: 5% !important;
   bottom: auto !important;
 }
 
@@ -120,6 +122,16 @@
   padding: 4px 8px !important;
 }
 
+/* Scrollable multi-sentence body */
+#live-ko-captions-root .lkc-body {
+  max-height: min(42vh, 320px) !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+  scrollbar-width: thin !important;
+  scrollbar-color: rgba(148, 163, 184, 0.45) transparent !important;
+}
+
 #live-ko-captions-root .lkc-text {
   font-size: var(--lkc-font-size) !important;
   line-height: 1.45 !important;
@@ -128,24 +140,57 @@
   word-break: keep-all !important;
   overflow-wrap: anywhere !important;
   color: #f8fafc !important;
-  min-height: 1.45em !important;
+  min-height: 3.2em !important;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) !important;
 }
 
-#live-ko-captions-root .lkc-text.lkc-interim {
-  color: #cbd5e1 !important;
+#live-ko-captions-root .lkc-lines {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.55em !important;
+  width: 100% !important;
+}
+
+#live-ko-captions-root .lkc-line {
+  margin: 0 !important;
+  padding: 0 4px !important;
+  text-align: center !important;
+  word-break: keep-all !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* Older sentences stay readable but slightly dimmer */
+#live-ko-captions-root .lkc-line-older {
+  color: rgba(226, 232, 240, 0.62) !important;
   font-weight: 500 !important;
 }
 
+#live-ko-captions-root .lkc-line-prev {
+  color: rgba(241, 245, 249, 0.82) !important;
+  font-weight: 550 !important;
+}
+
+#live-ko-captions-root .lkc-line-current {
+  color: #f8fafc !important;
+  font-weight: 650 !important;
+}
+
+#live-ko-captions-root .lkc-line-interim {
+  color: #94a3b8 !important;
+  font-weight: 500 !important;
+  font-style: italic !important;
+}
+
 #live-ko-captions-root .lkc-original {
-  margin-top: 8px !important;
-  padding-top: 8px !important;
+  margin-top: 10px !important;
+  padding-top: 10px !important;
   border-top: 1px solid rgba(255, 255, 255, 0.1) !important;
   font-size: calc(var(--lkc-font-size) * 0.72) !important;
-  line-height: 1.4 !important;
+  line-height: 1.45 !important;
   text-align: center !important;
   color: #94a3b8 !important;
   word-break: break-word !important;
+  white-space: pre-line !important;
 }
 
 #live-ko-captions-root .lkc-original[hidden] {

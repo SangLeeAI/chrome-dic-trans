@@ -1,5 +1,6 @@
 /**
  * Content script: floating Korean subtitle overlay.
+ * Keeps up to 3 finished sentences visible so short lines don't wipe long ones.
  */
 
 (() => {
@@ -7,23 +8,86 @@
   window.__LIVE_KO_CAPTIONS_LOADED__ = true;
 
   const ROOT_ID = "live-ko-captions-root";
+  const MAX_SENTENCES = 3;
+  // 22px * 0.8 ≈ 18
+  const DEFAULT_FONT_SIZE = 18;
+
   let root = null;
-  let textEl = null;
+  let linesEl = null;
   let originalEl = null;
   let statusEl = null;
   let dragHandle = null;
   let isVisible = false;
   let settings = {
-    fontSize: 22,
+    fontSize: DEFAULT_FONT_SIZE,
     opacity: 0.85,
     position: "bottom",
   };
+
+  /** @type {{ ko: string, en: string }[]} */
+  let history = [];
+  let interimKo = "";
+  let interimEn = "";
 
   function applySettings() {
     if (!root) return;
     root.style.setProperty("--lkc-font-size", `${settings.fontSize}px`);
     root.style.setProperty("--lkc-opacity", String(settings.opacity));
     root.dataset.position = settings.position || "bottom";
+  }
+
+  function escapeHtml(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function clearCaptions() {
+    history = [];
+    interimKo = "";
+    interimEn = "";
+    if (linesEl) linesEl.innerHTML = "";
+    if (originalEl) originalEl.textContent = "";
+  }
+
+  function renderLines() {
+    if (!linesEl) return;
+
+    const parts = [];
+    history.forEach((item, i) => {
+      const age = history.length - 1 - i; // 0 = newest final
+      const cls =
+        age === 0
+          ? "lkc-line lkc-line-current"
+          : age === 1
+            ? "lkc-line lkc-line-prev"
+            : "lkc-line lkc-line-older";
+      parts.push(`<div class="${cls}">${escapeHtml(item.ko)}</div>`);
+    });
+
+    if (interimKo || interimEn) {
+      const t = interimKo || interimEn;
+      parts.push(
+        `<div class="lkc-line lkc-line-interim">${escapeHtml(t)}</div>`
+      );
+    }
+
+    linesEl.innerHTML = parts.join("");
+
+    // EN panel: up to 3 finished + interim
+    if (originalEl) {
+      const enLines = history.map((h) => h.en).filter(Boolean);
+      if (interimEn) enLines.push(interimEn);
+      originalEl.textContent = enLines.slice(-MAX_SENTENCES).join("\n");
+    }
+
+    // Auto-scroll to bottom so newest is visible
+    const scrollBox = root?.querySelector(".lkc-body");
+    if (scrollBox) {
+      scrollBox.scrollTop = scrollBox.scrollHeight;
+    }
   }
 
   function ensureOverlay() {
@@ -40,15 +104,18 @@
           <button type="button" class="lkc-btn lkc-toggle-orig" title="원문 표시/숨김">EN</button>
           <button type="button" class="lkc-btn lkc-close" title="자막 닫기">×</button>
         </div>
-        <div class="lkc-text" aria-live="polite"></div>
-        <div class="lkc-original" hidden></div>
+        <div class="lkc-body">
+          <div class="lkc-text" aria-live="polite">
+            <div class="lkc-lines"></div>
+          </div>
+          <div class="lkc-original" hidden></div>
+        </div>
       </div>
     `;
 
-    // Attach to documentElement to survive some SPA body replacements
     document.documentElement.appendChild(root);
 
-    textEl = root.querySelector(".lkc-text");
+    linesEl = root.querySelector(".lkc-lines");
     originalEl = root.querySelector(".lkc-original");
     statusEl = root.querySelector(".lkc-status");
     dragHandle = root.querySelector(".lkc-drag");
@@ -119,8 +186,10 @@
 
   function showOverlay(nextSettings = {}) {
     settings = { ...settings, ...nextSettings };
+    if (settings.fontSize == null) settings.fontSize = DEFAULT_FONT_SIZE;
     ensureOverlay();
     applySettings();
+    clearCaptions();
     root.classList.add("lkc-visible");
     isVisible = true;
     setStatus("ready", "준비됨");
@@ -129,8 +198,7 @@
   function hideOverlay() {
     if (root) {
       root.classList.remove("lkc-visible");
-      if (textEl) textEl.textContent = "";
-      if (originalEl) originalEl.textContent = "";
+      clearCaptions();
     }
     isVisible = false;
   }
@@ -147,11 +215,44 @@
       root.classList.add("lkc-visible");
       isVisible = true;
     }
-    textEl.textContent = text || "";
-    textEl.classList.toggle("lkc-interim", !!interim);
-    if (original) {
-      originalEl.textContent = original;
+
+    const ko = (text || "").trim();
+    const en = (original || text || "").trim();
+
+    if (interim) {
+      // Unfinished sentence: keep history, show partial at bottom
+      interimKo = ko && ko !== lastHistoryKo() ? ko : "";
+      // Prefer English partial when still buffering
+      interimEn = en || ko;
+      // If offscreen sent last finished KO as `text` with interim flag, don't duplicate as interim line in Korean
+      if (ko && history.some((h) => h.ko === ko) && en && en !== ko) {
+        interimKo = "";
+        interimEn = en;
+      }
+      renderLines();
+      return;
     }
+
+    // Final sentence
+    interimKo = "";
+    interimEn = "";
+    if (!ko && !en) {
+      renderLines();
+      return;
+    }
+
+    const entry = { ko: ko || en, en: en || ko };
+    // Avoid consecutive duplicates
+    const last = history[history.length - 1];
+    if (!last || last.ko !== entry.ko || last.en !== entry.en) {
+      history.push(entry);
+      while (history.length > MAX_SENTENCES) history.shift();
+    }
+    renderLines();
+  }
+
+  function lastHistoryKo() {
+    return history.length ? history[history.length - 1].ko : "";
   }
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -184,9 +285,10 @@
       }
       case "CAPTION_ERROR":
         setStatus("error", message.error || "오류");
-        if (textEl) {
-          textEl.textContent = message.error || "오류가 발생했습니다.";
-          textEl.classList.add("lkc-interim");
+        if (linesEl) {
+          linesEl.innerHTML = `<div class="lkc-line lkc-line-interim">${escapeHtml(
+            message.error || "오류가 발생했습니다."
+          )}</div>`;
         }
         sendResponse?.({ ok: true });
         break;

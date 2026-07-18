@@ -194,9 +194,8 @@ function scheduleSentenceFlush() {
 
 function showPartialCaption() {
   if (!sentenceBuffer.trim()) return;
-  // Keep last finished Korean on screen; put unfinished English in original line
-  const display = lastKoCaption || sentenceBuffer;
-  postCaption(display, sentenceBuffer, true);
+  // Content script keeps last 3 finals; interim is only the unfinished English
+  postCaption("", sentenceBuffer, true);
 }
 
 /**

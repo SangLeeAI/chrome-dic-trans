@@ -60,7 +60,7 @@ async function loadSettings() {
     whisperUrl: "http://192.168.2.247:9000",
     chunkMs: 5500,
     sourceLang: "en-US",
-    fontSize: 22,
+    fontSize: 18,
     opacity: 0.85,
     position: "bottom",
   });
