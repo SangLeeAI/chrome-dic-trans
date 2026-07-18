@@ -22,7 +22,11 @@
 
 ### Local Whisper (추천)
 
-1. GPU PC 등에서 OpenAI 호환 Whisper 서버를 실행  
+로컬 Whisper 서버는 이 저장소에서 분리되어 다음 저장소로 옮겨졌습니다.
+
+→ **[SangLeeAI/local-whisper](https://github.com/SangLeeAI/local-whisper)**
+
+1. 위 저장소에서 GPU PC에 Whisper 서버를 설치·실행  
    (예: `http://192.168.2.247:9000`, `POST /v1/audio/transcriptions`, `GET /health`)
 2. Chrome에서 영어 영상 탭 열기
 3. 확장 팝업:
@@ -50,7 +54,7 @@
 
 | 엔진 | 입력 | 비고 |
 |------|------|------|
-| **Local Whisper** | 탭 오디오 청크 (3~8초) | 외부 Whisper HTTP API |
+| **Local Whisper** | 탭 오디오 청크 (3~8초) | [local-whisper](https://github.com/SangLeeAI/local-whisper) 서버 |
 | Web Speech | 마이크 | 폴백용 |
 
 흐름: `탭 오디오 → WAV 청크 → POST /v1/audio/transcriptions → 번역 → 자막`
@@ -85,10 +89,17 @@ chrome-dic-trans/
 | `offscreen` | 백그라운드 인식 |
 | `http://*/*`, `https://*/*` | Whisper 서버 · 번역 API |
 
+## 관련 저장소
+
+| 저장소 | 설명 |
+|--------|------|
+| [chrome-dic-trans](https://github.com/SangLeeAI/chrome-dic-trans) | 이 Chrome 확장 (자막 UI · 탭 캡처 · 번역) |
+| [local-whisper](https://github.com/SangLeeAI/local-whisper) | Windows/GPU용 로컬 Whisper HTTP 서버 |
+
 ## 제한 사항
 
 - `chrome://` 등 일부 페이지에서는 동작하지 않습니다.
-- Whisper 서버는 이 저장소에 포함되지 않습니다. (별도 운영)
+- Whisper 서버 코드는 이 저장소에 없습니다. → [local-whisper](https://github.com/SangLeeAI/local-whisper)
 - 번역은 공개 번역 엔드포인트를 사용하므로 네트워크가 필요합니다.
 
 ## 라이선스
