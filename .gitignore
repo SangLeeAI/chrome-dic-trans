@@ -1,2 +1,6 @@
 # Local session handoff (do not commit)
 handoff.md
+
+# Grok project-local config (agents, personas, rules, prompts)
+# Global Grok data lives in ~/.grok and is outside this repo.
+.grok/
