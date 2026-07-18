@@ -2,14 +2,20 @@
 
 웹사이트에서 재생되는 **영어 오디오/영상**을 인식해, 페이지 위에 **실시간 한글 자막**으로 보여 주는 Chrome 확장 프로그램입니다.
 
+**현재 버전: 1.2.0**
+
 ## 주요 기능
 
-- **Local Whisper (GPU)** — 외부 Whisper 서버 URL 연결 (탭 오디오 직접 인식)
+- **Local Whisper (GPU)** — 외부 Whisper 서버 URL 연결 (탭 오디오 직접 인식, 이어폰 OK)
+- **파이프라인 STT** — 인식 중 다음 구간을 녹음해 청크를 버리지 않음
+- **문장 연속성** — 직전 영어 문장을 Whisper `prompt`로 전달
 - Chrome Web Speech 폴백 (마이크)
 - 영어 → 한국어 자동 번역 자막
 - 드래그 가능한 플로팅 자막 박스
 - 영어 원문 토글 (`EN` 버튼)
 - 글자 크기 / 배경 투명도 / 위치 / 청크 길이 설정
+- 연결 테스트 시 서버 `model` · `device` · `device_index` · `compute_type` 표시
+- 무음 구간 / 인식 없음 상태 표시
 
 ## 설치 방법
 
@@ -17,6 +23,7 @@
 2. 우측 상단 **개발자 모드** 켜기
 3. **압축해제된 확장 프로그램을 로드합니다** 클릭
 4. 이 폴더(`chrome-dic-trans`) 선택
+5. 코드 갱신 후 확장 카드의 **새로고침** 클릭
 
 ## 사용 방법
 
@@ -27,12 +34,13 @@
 → **[SangLeeAI/local-whisper](https://github.com/SangLeeAI/local-whisper)**
 
 1. 위 저장소에서 GPU PC에 Whisper 서버를 설치·실행  
-   (예: `http://192.168.2.247:9000`, `POST /v1/audio/transcriptions`, `GET /health`)
-2. Chrome에서 영어 영상 탭 열기
+   (예: `http://192.168.2.247:9000`)
+2. Chrome에서 영어 영상 탭 열기 (실제로 재생 중이어야 함)
 3. 확장 팝업:
    - 엔진: **Local Whisper (GPU)**
-   - URL: 서버 주소
-   - **연결 테스트** → OK
+   - URL: 서버 주소 (예: `http://192.168.2.247:9000`)
+   - 청크 길이: 기본 **5.5초** (large-v3 서버는 5~6초 권장)
+   - **연결 테스트** → `OK · model · device:index · compute` 확인
 4. **자막 시작**
 
 탭 오디오를 캡처하므로 이어폰만 사용해도 인식됩니다.
@@ -54,31 +62,51 @@
 
 | 엔진 | 입력 | 비고 |
 |------|------|------|
-| **Local Whisper** | 탭 오디오 청크 (3~8초) | [local-whisper](https://github.com/SangLeeAI/local-whisper) 서버 |
+| **Local Whisper** | 탭 오디오 청크 (기본 5.5초, 3~8초 조절) | [local-whisper](https://github.com/SangLeeAI/local-whisper) 서버 |
 | Web Speech | 마이크 | 폴백용 |
 
-흐름: `탭 오디오 → WAV 청크 → POST /v1/audio/transcriptions (+ prompt) → 번역 → 자막`
+```
+탭 오디오
+  → WAV 청크 (16 kHz mono)
+  → POST /v1/audio/transcriptions  (+ language=en, prompt=직전 영어)
+  → 영어 텍스트
+  → 한글 번역
+  → 화면 자막
+```
 
-- 기본 청크 **5.5초**, 인식 중 다음 구간을 녹음(파이프라인)해 청크를 버리지 않습니다.
-- 직전 영어 문장을 Whisper `prompt`로 넘겨 문장 연속성을 높입니다.
-- 서버 기본이 `large-v3`면 인식이 무거울 수 있으니 청크를 5~6초로 두는 것을 권장합니다.
+### Local Whisper 동작 세부 (v1.2.0)
+
+| 항목 | 동작 |
+|------|------|
+| 오디오 포맷 | `chunk.wav` (PCM, 16 kHz, mono) — 서버 ffmpeg 의존 최소화 |
+| 파이프라인 | STT 처리 중에도 다음 청크 녹음. **느린 large-v3에서도 청크 drop 없음** |
+| prompt | 직전 인식 영어 문장(최대 약 220자)을 다음 요청에 전달해 문장 끊김 완화 |
+| 기본 청크 | **5.5초** — 서버 `large-v3` + beam search 지연에 맞춤 |
+| 무음 처리 | 서버 `warning: silent_audio` 또는 빈 텍스트 시 상태만 표시 (자막 유지) |
+| Health | `GET /health` → `ok` 확인. 연결 테스트에 device 정보 표시 |
+
+서버 API (OpenAI 호환):
+
+- `GET /health`
+- `POST /v1/audio/transcriptions`  
+  `multipart/form-data`: `file`, `model`, `language`, `response_format`, `prompt`(optional)
 
 ## 프로젝트 구조
 
 ```
 chrome-dic-trans/
-├── manifest.json
-├── background.js
+├── manifest.json          # MV3, v1.2.0
+├── background.js          # 시작/중지, 탭 메시지, Whisper 테스트 중계
 ├── offscreen/
 │   ├── offscreen.html
-│   └── offscreen.js
+│   └── offscreen.js       # 탭 캡처 · WAV · Whisper · 번역 · Web Speech
 ├── content/
-│   ├── content.js
+│   ├── content.js         # 자막 오버레이
 │   └── content.css
 ├── popup/
 │   ├── popup.html
 │   ├── popup.css
-│   └── popup.js
+│   └── popup.js           # 엔진/URL/청크/표시 설정
 ├── icons/
 └── README.md
 ```
@@ -87,10 +115,10 @@ chrome-dic-trans/
 
 | 권한 | 용도 |
 |------|------|
-| `storage` | 설정 저장 |
+| `storage` | 엔진, URL, 청크, 표시 설정 저장 |
 | `activeTab` / `scripting` / `tabs` | 자막 오버레이 |
 | `tabCapture` | 탭 오디오 |
-| `offscreen` | 백그라운드 인식 |
+| `offscreen` | 백그라운드 인식 유지 |
 | `http://*/*`, `https://*/*` | Whisper 서버 · 번역 API |
 
 ## 관련 저장소
@@ -100,11 +128,28 @@ chrome-dic-trans/
 | [chrome-dic-trans](https://github.com/SangLeeAI/chrome-dic-trans) | 이 Chrome 확장 (자막 UI · 탭 캡처 · 번역) |
 | [local-whisper](https://github.com/SangLeeAI/local-whisper) | Windows/GPU용 로컬 Whisper HTTP 서버 |
 
+## 변경 이력 (요약)
+
+### 1.2.0
+
+- Whisper STT **파이프라인** (청크 drop 제거)
+- 직전 영어 문장 **`prompt` 연속성**
+- 기본 청크 **5.5초**
+- 무음/인식 없음 상태, 연결 테스트에 GPU device 정보 표시
+- [local-whisper](https://github.com/SangLeeAI/local-whisper) 서버 분리·연동 문서화
+
+### 1.1.x
+
+- Local Whisper URL 모드, 탭 오디오 → WAV 전송
+- Web Speech 폴백, 플로팅 자막 UI
+
 ## 제한 사항
 
 - `chrome://` 등 일부 페이지에서는 동작하지 않습니다.
 - Whisper 서버 코드는 이 저장소에 없습니다. → [local-whisper](https://github.com/SangLeeAI/local-whisper)
+- 서버가 `large-v3`이면 인식 지연이 있을 수 있습니다. 청크 5~6초·파이프라인으로 보완합니다.
 - 번역은 공개 번역 엔드포인트를 사용하므로 네트워크가 필요합니다.
+- LAN 외부 공개는 인증이 없으니 권장하지 않습니다. (VPN/Tailscale 권장)
 
 ## 라이선스
 
